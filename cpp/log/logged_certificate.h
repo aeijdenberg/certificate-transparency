@@ -56,9 +56,11 @@ class LoggedCertificate : public ct::LoggedCertificatePB {
     if (entry().type() == ct::X509_ENTRY)
       return Serializer::SerializeX509Chain(entry().x509_entry(), dst) ==
              Serializer::OK;
-    else
+    else if (entry().type() == ct::PRECERT_ENTRY)
       return Serializer::SerializePrecertChainEntry(entry().precert_entry(),
                                                     dst) == Serializer::OK;
+    else if (entry().type() == ct::SIGNED_DATA_ENTRY)
+      return true;
   }
 
   // Note that this method will not fully populate the SCT.

@@ -38,6 +38,7 @@ using cert_trans::Latency;
 using cert_trans::LoggedCertificate;
 using cert_trans::Proxy;
 using cert_trans::ScopedLatency;
+using cert_trans::SignedData;
 using ct::ShortMerkleAuditProof;
 using ct::SignedCertificateTimestamp;
 using ct::SignedTreeHead;
@@ -62,6 +63,10 @@ DEFINE_int32(max_leaf_entries_per_response, 1000,
              "get-entries request");
 DEFINE_int32(staleness_check_delay_secs, 5,
              "number of seconds between node staleness checks");
+DEFINE_bool(accept_certificates, true,
+             "accept certificates/pre-certificates as input");
+DEFINE_bool(accept_signed_data, false,
+             "accept arbitrary signed data as input");
 
 namespace {
 
@@ -69,6 +74,51 @@ namespace {
 static Latency<milliseconds, string> http_server_request_latency_ms(
     "total_http_server_request_latency_ms", "path",
     "Total request latency in ms broken down by path");
+
+
+bool ExtractSignedData(JsonOutput* output, evhttp_request* req,
+                       SignedData* data) {
+  if (evhttp_request_get_command(req) != EVHTTP_REQ_POST) {
+    output->SendError(req, HTTP_BADMETHOD, "Method not allowed.");
+    return false;
+  }
+
+  // TODO(pphaneuf): Should we check that Content-Type says
+  // "application/json", as recommended by RFC4627?
+  JsonObject json_body(evhttp_request_get_input_buffer(req));
+  if (!json_body.Ok() || !json_body.IsType(json_type_object)) {
+    output->SendError(req, HTTP_BADREQUEST, "Unable to parse provided JSON.");
+    return false;
+  }
+
+  JsonString json_keyid(json_body, "keyid");
+  if (!json_keyid.Ok()) {
+    output->SendError(req, HTTP_BADREQUEST, "Unable to parse provided JSON.");
+    return false;
+  }
+
+  JsonString json_signature(json_body, "signature");
+  if (!json_signature.Ok()) {
+    output->SendError(req, HTTP_BADREQUEST, "Unable to parse provided JSON.");
+    return false;
+  }
+
+  JsonString json_data(json_body, "data");
+  if (!json_data.Ok()) {
+    output->SendError(req, HTTP_BADREQUEST, "Unable to parse provided JSON.");
+    return false;
+  }
+
+  VLOG(2) << "ExtractSignedData keyid:\n" << json_keyid.DebugString();
+  VLOG(2) << "ExtractSignedData signature:\n" << json_signature.DebugString();
+  VLOG(2) << "ExtractSignedData data:\n" << json_data.DebugString();
+
+  data->SetKeyId(json_keyid.FromBase64());
+  data->SetSignature(json_signature.FromBase64());
+  data->SetData(json_data.FromBase64());
+
+  return true;
+}
 
 
 bool ExtractChain(JsonOutput* output, evhttp_request* req, CertChain* chain) {
@@ -309,10 +359,16 @@ void HttpHandler::Add(libevent::HttpServer* server) {
     // Proxy the add-* calls too, technically we could serve them, but a
     // more up-to-date node will have a better chance of handling dupes
     // correctly, rather than bloating the tree.
-    AddProxyWrappedHandler(server, "/ct/v1/add-chain",
-                           bind(&HttpHandler::AddChain, this, _1));
-    AddProxyWrappedHandler(server, "/ct/v1/add-pre-chain",
-                           bind(&HttpHandler::AddPreChain, this, _1));
+    if (FLAGS_accept_certificates) {
+      AddProxyWrappedHandler(server, "/ct/v1/add-chain",
+                             bind(&HttpHandler::AddChain, this, _1));
+      AddProxyWrappedHandler(server, "/ct/v1/add-pre-chain",
+                             bind(&HttpHandler::AddPreChain, this, _1));
+    }
+    if (FLAGS_accept_signed_data) {
+      AddProxyWrappedHandler(server, "/ct/v1/add-signed-data",
+                             bind(&HttpHandler::AddSignedData, this, _1));
+    }
   }
 }
 
@@ -473,6 +529,16 @@ void HttpHandler::GetConsistency(evhttp_request* req) const {
 }
 
 
+void HttpHandler::AddSignedData(evhttp_request* req) {
+  const shared_ptr<SignedData> data(make_shared<SignedData>());
+  if (!ExtractSignedData(output_, req, data.get())) {
+    return;
+  }
+
+  pool_->Add(bind(&HttpHandler::BlockingAddSignedData, this, req, data));
+}
+
+
 void HttpHandler::AddChain(evhttp_request* req) {
   const shared_ptr<CertChain> chain(make_shared<CertChain>());
   if (!ExtractChain(output_, req, chain.get())) {
@@ -537,6 +603,17 @@ void HttpHandler::BlockingGetEntries(evhttp_request* req, int64_t start,
   json_reply.Add("entries", json_entries);
 
   output_->SendJsonReply(req, HTTP_OK, json_reply);
+}
+
+
+void HttpHandler::BlockingAddSignedData(evhttp_request* req,
+                                   const shared_ptr<SignedData>& data) const {
+  SignedCertificateTimestamp sct;
+
+  AddChainReply(output_, req,
+                CHECK_NOTNULL(frontend_)
+                    ->QueueSignedDataEntry(CHECK_NOTNULL(data.get()), &sct),
+                sct);
 }
 
 

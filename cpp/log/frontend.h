@@ -24,6 +24,8 @@ class Frontend {
   ~Frontend();
 
   // Note that these might change the |chain|.
+  util::Status QueueSignedDataEntry(cert_trans::SignedData* data,
+                                    ct::SignedCertificateTimestamp* sct);
   util::Status QueueX509Entry(cert_trans::CertChain* chain,
                               ct::SignedCertificateTimestamp* sct);
   util::Status QueuePreCertEntry(cert_trans::PreCertChain* chain,

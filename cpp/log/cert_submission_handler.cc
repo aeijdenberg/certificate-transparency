@@ -13,9 +13,11 @@ using cert_trans::Cert;
 using cert_trans::CertChain;
 using cert_trans::CertChecker;
 using cert_trans::PreCertChain;
+using cert_trans::SignedData;
 using cert_trans::TbsCertificate;
 using ct::LogEntry;
 using ct::PrecertChainEntry;
+using ct::SignedDataEntry;
 using ct::X509ChainEntry;
 using std::string;
 using util::Status;
@@ -71,6 +73,21 @@ bool CertSubmissionHandler::X509ChainToEntry(const CertChain& chain,
     entry->mutable_x509_entry()->set_leaf_certificate(der_cert);
     return true;
   }
+}
+
+Status CertSubmissionHandler::ProcessSignedDataSubmission(SignedData* data,
+                                                          LogEntry* entry) {
+  const Status status(cert_checker_->CheckSignedData(data));
+  if (!status.ok())
+    return status;
+
+  SignedDataEntry* signed_data_entry = entry->mutable_signed_data_entry();
+  signed_data_entry->set_keyid(data->GetKeyId());
+  signed_data_entry->set_data(data->GetData());
+  signed_data_entry->set_signature(data->GetSignature());
+  
+  entry->set_type(ct::SIGNED_DATA_ENTRY);
+  return Status::OK;
 }
 
 Status CertSubmissionHandler::ProcessX509Submission(CertChain* chain,

@@ -67,6 +67,10 @@ string Serializer::LeafCertificate(const LogEntry& entry) {
       CHECK(entry.precert_entry().pre_cert().has_tbs_certificate())
           << "Missing tbs certificate";
       return entry.precert_entry().pre_cert().tbs_certificate();
+    case ct::SIGNED_DATA_ENTRY:
+      //TODO(eijdenberg): following is wrong, but so is the context in which this
+      //is called
+      return (entry.signed_data_entry().keyid() + "/" + entry.signed_data_entry().data());
     default:
       LOG(FATAL) << "Invalid entry type " << entry.type();
   }
@@ -119,6 +123,25 @@ Serializer::SerializeResult Serializer::SerializeV1PrecertSCTSignatureInput(
 }
 
 // static
+Serializer::SerializeResult Serializer::SerializeV1SignedDataSCTSignatureInput(
+    uint64_t timestamp, const string& keyid,
+    const string& data, const string& extensions, string* result) {
+  SerializeResult res = CheckExtensionsFormat(extensions);
+  if (res != OK)
+    return res;
+  Serializer serializer;
+  serializer.WriteUint(ct::V1, kVersionLengthInBytes);
+  serializer.WriteUint(ct::CERTIFICATE_TIMESTAMP, kSignatureTypeLengthInBytes);
+  serializer.WriteUint(timestamp, kTimestampLengthInBytes);
+  serializer.WriteUint(ct::SIGNED_DATA_ENTRY, kLogEntryTypeLengthInBytes);
+  serializer.WriteVarBytes(keyid, kMaxSerializedSCTLength);
+  serializer.WriteVarBytes(data, kMaxSerializedSCTLength);
+  serializer.WriteVarBytes(extensions, kMaxExtensionsLength);
+  result->assign(serializer.SerializedString());
+  return OK;
+}
+
+// static
 Serializer::SerializeResult Serializer::SerializeSCTSignatureInput(
     const SignedCertificateTimestamp& sct, const LogEntry& entry,
     string* result) {
@@ -133,6 +156,11 @@ Serializer::SerializeResult Serializer::SerializeSCTSignatureInput(
       return SerializeV1PrecertSCTSignatureInput(
           sct.timestamp(), entry.precert_entry().pre_cert().issuer_key_hash(),
           entry.precert_entry().pre_cert().tbs_certificate(), sct.extensions(),
+          result);
+    case ct::SIGNED_DATA_ENTRY:
+      return SerializeV1SignedDataSCTSignatureInput(
+          sct.timestamp(), entry.signed_data_entry().keyid(),
+          entry.signed_data_entry().data(), sct.extensions(),
           result);
     default:
       return INVALID_ENTRY_TYPE;
@@ -186,6 +214,25 @@ Serializer::SerializeResult Serializer::SerializeV1PrecertSCTMerkleTreeLeaf(
 }
 
 // static
+Serializer::SerializeResult Serializer::SerializeV1SignedDataSCTMerkleTreeLeaf(
+    uint64_t timestamp, const string& keyid,
+    const string& data, const string& extensions, string* result) {
+  SerializeResult res = CheckExtensionsFormat(extensions);
+  if (res != OK)
+    return res;
+  Serializer serializer;
+  serializer.WriteUint(ct::V1, kVersionLengthInBytes);
+  serializer.WriteUint(ct::TIMESTAMPED_ENTRY, kMerkleLeafTypeLengthInBytes);
+  serializer.WriteUint(timestamp, kTimestampLengthInBytes);
+  serializer.WriteUint(ct::SIGNED_DATA_ENTRY, kLogEntryTypeLengthInBytes);
+  serializer.WriteVarBytes(keyid, kMaxSerializedSCTLength);
+  serializer.WriteVarBytes(data, kMaxSerializedSCTLength);
+  serializer.WriteVarBytes(extensions, kMaxExtensionsLength);
+  result->assign(serializer.SerializedString());
+  return OK;
+}
+
+// static
 Serializer::SerializeResult Serializer::SerializeSCTMerkleTreeLeaf(
     const ct::SignedCertificateTimestamp& sct, const ct::LogEntry& entry,
     string* result) {
@@ -200,6 +247,11 @@ Serializer::SerializeResult Serializer::SerializeSCTMerkleTreeLeaf(
       return SerializeV1PrecertSCTMerkleTreeLeaf(
           sct.timestamp(), entry.precert_entry().pre_cert().issuer_key_hash(),
           entry.precert_entry().pre_cert().tbs_certificate(), sct.extensions(),
+          result);
+    case ct::SIGNED_DATA_ENTRY:
+      return SerializeV1SignedDataSCTMerkleTreeLeaf(
+          sct.timestamp(), entry.signed_data_entry().keyid(),
+          entry.signed_data_entry().data(), sct.extensions(),
           result);
     default:
       return INVALID_ENTRY_TYPE;
@@ -727,7 +779,8 @@ Deserializer::DeserializeResult Deserializer::ReadMerkleTreeLeaf(
   int entry_type;
   if (!ReadUint(Serializer::kLogEntryTypeLengthInBytes, &entry_type))
     return INPUT_TOO_SHORT;
-  if (entry_type != ct::X509_ENTRY && entry_type != ct::PRECERT_ENTRY)
+  if (entry_type != ct::X509_ENTRY && entry_type != ct::PRECERT_ENTRY &&
+      entry_type != ct::SIGNED_DATA_ENTRY)
     return UNKNOWN_LOGENTRY_TYPE;
   entry->set_entry_type(static_cast<ct::LogEntryType>(entry_type));
 
@@ -736,7 +789,7 @@ Deserializer::DeserializeResult Deserializer::ReadMerkleTreeLeaf(
     if (!ReadVarBytes(Serializer::kMaxCertificateLength, &x509))
       return INPUT_TOO_SHORT;
     entry->mutable_signed_entry()->set_x509(x509);
-  } else {
+  } else if (entry_type == ct::PRECERT_ENTRY) {
     string issuer_key_hash;
     if (!ReadFixedBytes(32, &issuer_key_hash))
       return INPUT_TOO_SHORT;
@@ -747,6 +800,15 @@ Deserializer::DeserializeResult Deserializer::ReadMerkleTreeLeaf(
       return INPUT_TOO_SHORT;
     entry->mutable_signed_entry()->mutable_precert()->set_tbs_certificate(
         tbs_certificate);
+  } else if (entry_type == ct::SIGNED_DATA_ENTRY) {
+    string keyid;
+    if (!ReadVarBytes(Serializer::kMaxSerializedSCTLength, &keyid))
+      return INPUT_TOO_SHORT;
+    entry->mutable_signed_entry()->mutable_data()->set_keyid(keyid);
+    string data;
+    if (!ReadVarBytes(Serializer::kMaxSerializedSCTLength, &data))
+      return INPUT_TOO_SHORT;
+    entry->mutable_signed_entry()->mutable_data()->set_data(data);
   }
 
   string extensions;

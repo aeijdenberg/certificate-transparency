@@ -12,6 +12,7 @@
 
 using cert_trans::CertChain;
 using cert_trans::PreCertChain;
+using cert_trans::SignedData;
 using ct::LogEntry;
 using ct::SignedCertificateTimestamp;
 using std::string;
@@ -54,6 +55,15 @@ Status Frontend::QueueProcessedEntry(Status pre_status, const LogEntry& entry,
 
   // Step 2. Submit to database.
   return UpdateStats(entry.type(), signer_->QueueEntry(entry, sct));
+}
+
+Status Frontend::QueueSignedDataEntry(SignedData* data,
+                                      SignedCertificateTimestamp* sct) {
+  LogEntry entry;
+  // Make sure the correct statistics get updated in case of error.
+  entry.set_type(ct::SIGNED_DATA_ENTRY);
+  return QueueProcessedEntry(handler_->ProcessSignedDataSubmission(data, &entry),
+                             entry, sct);
 }
 
 Status Frontend::QueueX509Entry(CertChain* chain,

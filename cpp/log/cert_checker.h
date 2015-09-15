@@ -18,6 +18,7 @@ namespace cert_trans {
 class Cert;
 class CertChain;
 class PreCertChain;
+class SignedData;
 
 // A class for doing sanity-checks on log submissions before accepting them.
 // We don't necessarily want to do full certificate verification
@@ -67,6 +68,9 @@ class CertChecker {
   // someone is trying to log a root cert, which is fine though unexciting.)
   virtual util::Status CheckCertChain(CertChain* chain) const;
 
+  
+  virtual util::Status CheckSignedData(SignedData* data) const;
+  
   // Check that:
   // (1) The PreCertChain is well-formed according to I-D rules.
   // (2) Each certificate is correctly signed by the next one in the chain; and

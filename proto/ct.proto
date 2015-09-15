@@ -38,6 +38,7 @@ message DigitallySigned {
 enum LogEntryType {
   X509_ENTRY = 0;
   PRECERT_ENTRY = 1;
+  SIGNED_DATA_ENTRY = 100;
   // Not part of the I-D, and outside the valid range.
   UNKNOWN_ENTRY_TYPE = 65536;
 }
@@ -75,12 +76,25 @@ message PrecertChainEntry {
   optional PreCert pre_cert = 3;
 }
 
+message SignedData {
+  optional bytes keyid = 1;
+  optional bytes data = 2;
+}
+
+message SignedDataEntry {
+  optional bytes keyid = 1;
+  optional bytes data = 2;
+  optional bytes signature = 3;
+}
+
 message LogEntry {
   optional LogEntryType type = 1 [ default = UNKNOWN_ENTRY_TYPE ];
 
   optional X509ChainEntry x509_entry = 2;
 
   optional PrecertChainEntry precert_entry = 3;
+  
+  optional SignedDataEntry signed_data_entry = 4;
 }
 
 enum SignatureType {
@@ -123,6 +137,7 @@ enum MerkleLeafType {
 message SignedEntry {
   optional bytes x509 = 1;
   optional PreCert precert = 2;
+  optional SignedData data = 3;
 }
 
 message TimestampedEntry {

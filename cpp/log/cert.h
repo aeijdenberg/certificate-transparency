@@ -365,6 +365,27 @@ class CertChain {
   DISALLOW_COPY_AND_ASSIGN(CertChain);
 };
 
+class SignedData {
+ public:
+  SignedData() = default;
+  ~SignedData() = default;
+ 
+  util::Status SetData(const std::string& data);
+  util::Status SetSignature(const std::string& signature);
+  util::Status SetKeyId(const std::string& keyid);
+ 
+  std::string GetData();
+  std::string GetSignature();
+  std::string GetKeyId();
+
+ private:
+  std::string data_;
+  std::string signature_;
+  std::string keyid_;
+
+  DISALLOW_COPY_AND_ASSIGN(SignedData);
+};
+
 // Note: CT extensions must be loaded to use this class. See
 // log/ct_extensions.h for LoadCtExtensions().
 class PreCertChain : public CertChain {

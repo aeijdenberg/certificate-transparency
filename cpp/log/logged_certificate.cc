@@ -2,6 +2,7 @@
 
 using ct::LogEntry;
 using ct::PreCert;
+using ct::SignedDataEntry;
 using ct::SignedCertificateTimestamp;
 
 namespace cert_trans {
@@ -10,7 +11,8 @@ namespace cert_trans {
 bool LoggedCertificate::CopyFromClientLogEntry(
     const AsyncLogClient::Entry& entry) {
   if (entry.leaf.timestamped_entry().entry_type() != ct::X509_ENTRY &&
-      entry.leaf.timestamped_entry().entry_type() != ct::PRECERT_ENTRY) {
+      entry.leaf.timestamped_entry().entry_type() != ct::PRECERT_ENTRY &&
+      entry.leaf.timestamped_entry().entry_type() != ct::SIGNED_DATA_ENTRY) {
     LOG(INFO) << "unsupported entry_type: "
               << entry.leaf.timestamped_entry().entry_type();
     return false;
@@ -48,6 +50,19 @@ bool LoggedCertificate::CopyFromClientLogEntry(
                                        .signed_entry()
                                        .precert()
                                        .tbs_certificate());
+      break;
+    }
+
+    case ct::SIGNED_DATA_ENTRY: {
+      SignedDataEntry* const signeddataentry(log_entry->mutable_signed_data_entry());
+      signeddataentry->set_keyid(entry.leaf.timestamped_entry()
+                                           .signed_entry()
+                                           .data()
+                                           .keyid());
+      signeddataentry->set_data(entry.leaf.timestamped_entry()
+                                           .signed_entry()
+                                           .data()
+                                           .data());
       break;
     }
 

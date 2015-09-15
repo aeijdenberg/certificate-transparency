@@ -1418,6 +1418,39 @@ void CertChain::ClearChain() {
   chain_.clear();
 }
 
+ 
+util::Status SignedData::SetData(const std::string& data) {
+  data_.assign(data);
+  return util::Status::OK;
+}
+
+
+util::Status SignedData::SetSignature(const std::string& signature) {
+  signature_.assign(signature);
+  return util::Status::OK;
+}
+
+
+util::Status SignedData::SetKeyId(const std::string& keyid) {
+  keyid_.assign(keyid);
+  return util::Status::OK;
+}
+
+
+std::string SignedData::GetData() {
+  return data_;
+}
+
+
+std::string SignedData::GetSignature() {
+  return signature_;
+}
+
+
+std::string SignedData::GetKeyId() {
+  return keyid_;
+}
+
 
 Cert::Status PreCertChain::UsesPrecertSigningCertificate() const {
   const Cert* issuer = PrecertIssuingCert();

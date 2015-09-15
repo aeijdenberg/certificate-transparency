@@ -76,6 +76,11 @@ class Serializer {
       const std::string& tbs_certificate, const std::string& extensions,
       std::string* result);
 
+  static SerializeResult SerializeV1SignedDataSCTSignatureInput(
+      uint64_t timestamp, const std::string& keyid,
+      const std::string& data, const std::string& extensions,
+      std::string* result);
+
   static SerializeResult SerializeSCTSignatureInput(
       const ct::SignedCertificateTimestamp& sct, const ct::LogEntry& entry,
       std::string* result);
@@ -87,6 +92,11 @@ class Serializer {
   static SerializeResult SerializeV1PrecertSCTMerkleTreeLeaf(
       uint64_t timestamp, const std::string& issuer_key_hash,
       const std::string& tbs_certificate, const std::string& extensions,
+      std::string* result);
+
+  static SerializeResult SerializeV1SignedDataSCTMerkleTreeLeaf(
+      uint64_t timestamp, const std::string& keyid,
+      const std::string& data, const std::string& extensions,
       std::string* result);
 
   static SerializeResult SerializeSCTMerkleTreeLeaf(

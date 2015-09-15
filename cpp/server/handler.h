@@ -20,6 +20,7 @@ namespace cert_trans {
 
 class CertChain;
 class CertChecker;
+class SignedData;
 template <class T>
 class ClusterStateController;
 class JsonOutput;
@@ -59,6 +60,7 @@ class HttpHandler {
   void GetProof(evhttp_request* req) const;
   void GetSTH(evhttp_request* req) const;
   void GetConsistency(evhttp_request* req) const;
+  void AddSignedData(evhttp_request* req);
   void AddChain(evhttp_request* req);
   void AddPreChain(evhttp_request* req);
 
@@ -66,6 +68,8 @@ class HttpHandler {
                           bool include_scts) const;
   void BlockingAddChain(evhttp_request* req,
                         const std::shared_ptr<CertChain>& chain) const;
+  void BlockingAddSignedData(evhttp_request* req,
+                        const std::shared_ptr<SignedData>& data) const;
   void BlockingAddPreChain(evhttp_request* req,
                            const std::shared_ptr<PreCertChain>& chain) const;
 

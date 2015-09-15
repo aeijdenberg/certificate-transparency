@@ -136,6 +136,12 @@ void CertChecker::ClearAllTrustedCertificates() {
   trusted_.clear();
 }
 
+Status CertChecker::CheckSignedData(SignedData* data) const {
+  //TODO(eijdenberg)
+  return Status::OK;
+  
+}
+
 Status CertChecker::CheckCertChain(CertChain* chain) const {
   if (!chain || !chain->IsLoaded())
     return Status(util::error::INVALID_ARGUMENT, "invalid certificate chain");

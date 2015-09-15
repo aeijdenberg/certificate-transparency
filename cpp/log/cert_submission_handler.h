@@ -20,6 +20,8 @@ class CertSubmissionHandler {
 
   // These may change |chain|.
   // TODO(pphaneuf): These could return StatusOr<ct::LogEntry>.
+  util::Status ProcessSignedDataSubmission(cert_trans::SignedData* data,
+                                           ct::LogEntry* entry);
   util::Status ProcessX509Submission(cert_trans::CertChain* chain,
                                      ct::LogEntry* entry);
   util::Status ProcessPreCertSubmission(cert_trans::PreCertChain* chain,
